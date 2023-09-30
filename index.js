@@ -4,6 +4,7 @@ const cors = require("cors");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const port = process.env.port || 5000;
+const stripe = require("stripe")(process.env.PAYMENT_GATEWAY_SK);
 
 /* CORS */
 app.use(cors());
@@ -55,15 +56,40 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
 
-    // MongoDB Collections
+    /* =================================================
+                 MongoDb collection block
+      ===================================================*/
     const userCollection = client.db("mobileLibraryDB").collection("users");
     const authorCollection = client.db("mobileLibraryDB").collection("authors");
     const bookCollection = client.db("mobileLibraryDB").collection("books");
 
+    /* =================================================
+                    Payment Method block
+      ===================================================*/
+    // Create payment intent
+    app.post("/create-payment-intent", async (req, res) => {
+      const fees = req.body.fees;
+
+      if (fees) {
+        const amount = parseFloat(fees) * 100;
+
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+        res.send({ clientSecret: paymentIntent.client_secret });
+      }
+    });
+
+    /* =================================================
+                    User Block
+      ===================================================*/
+
     //Adding user to the DB
     app.post("/users", async (req, res) => {
       const user = req.body;
-      console.log("from app.pos", user);
+
       const query = { email: user.email };
       const existingUser = await userCollection.findOne(query);
       if (existingUser) {
@@ -73,9 +99,30 @@ async function run() {
         res.send(result);
       }
     });
+
+    // User data update after successful payment
+    app.patch("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const paymentInfo = req.body;
+      console.log("Payment", email, paymentInfo);
+
+      const filter = { email: email };
+
+      const options = { upsert: true };
+
+      const updateDoc = {
+        $set: paymentInfo,
+      };
+
+      if (filter) {
+        const result = await userCollection.updateOne(filter, updateDoc, options);
+        res.send(result);
+      }
+    });
     /* =================================================
                     Books Block
       ===================================================*/
+    // Posting book data into the server
     app.post("/books", async (req, res) => {
       const book = req.body;
       const query = { title: book.title, authorId: book.authorId };
@@ -88,6 +135,52 @@ async function run() {
       }
     });
 
+    // Get all book data
+    app.get("/books", async (req, res) => {
+      const searchText = req.query.search;
+      console.log(searchText);
+      const query = {
+        $or: [{ title: { $regex: searchText, $options: "i" } }],
+      };
+      console.log(query, searchText);
+
+      if (searchText) {
+        const result = await bookCollection.find(query).toArray();
+
+        res.send(result);
+      } else {
+        const result = await bookCollection.find().limit(10).toArray();
+        res.send(result);
+      }
+    });
+
+    // Get 10 Book data for pagination
+    app.get(`/books/:pageNum`, async (req, res) => {
+      const pageNum = parseInt(req.params.pageNum);
+      if (pageNum) {
+        const limitRange = 10;
+        const skipRange = (pageNum - 1) * 10;
+        const result = await bookCollection.find().skip(skipRange).limit(limitRange).toArray();
+        res.send(result);
+      }
+    });
+
+    // Get featured books from all books
+    app.get("/featured-books", async (req, res) => {
+      const query = { format: { $nin: ["ebook"] } };
+      const result = await bookCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    /* ---------------------------------------------------
+                    Free Ebook Part
+  -----------------------------------------------------*/
+
+    app.get("/ebooks", async (req, res) => {
+      const query = { format: "ebook" };
+      const result = await bookCollection.find(query).toArray();
+      res.send(result);
+    });
     /* =================================================
                     Authors Block
       ===================================================*/
@@ -126,6 +219,12 @@ async function run() {
       }
     });
 
+    // Get all authors
+    app.get("/authors", async (req, res) => {
+      const result = await authorCollection.find().toArray();
+      res.send(result);
+    });
+
     // get author by name
     app.get("/authors", async (req, res) => {
       const authorName = req.query.name;
@@ -137,6 +236,17 @@ async function run() {
         } else {
           res.send(result);
         }
+      }
+    });
+
+    // Get author by id
+    app.get("/authors/:id", async (req, res) => {
+      const id = req.params.id;
+      if (id) {
+        const authorId = new ObjectId(id);
+        const query = { _id: authorId };
+        const result = await authorCollection.findOne(query);
+        res.send(result);
       }
     });
 
