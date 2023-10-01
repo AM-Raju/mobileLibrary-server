@@ -26,7 +26,7 @@ const client = new MongoClient(uri, {
 // Verify JWT middleware
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
-  console.log("Authorization", authorization);
+  // console.log("Authorization", authorization);
   if (!authorization) {
     return res.status(401).send({ error: true, message: "Unauthorized Access" });
   }
@@ -104,7 +104,7 @@ async function run() {
     app.patch("/users/:email", async (req, res) => {
       const email = req.params.email;
       const paymentInfo = req.body;
-      console.log("Payment", email, paymentInfo);
+      // console.log("Payment", email, paymentInfo);
 
       const filter = { email: email };
 
@@ -119,6 +119,24 @@ async function run() {
         res.send(result);
       }
     });
+
+    // Get all user data
+
+    app.get("/users", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+
+    // Get user role
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      if (email) {
+        const result = await userCollection.findOne(query);
+        res.send(result);
+      }
+    });
+
     /* =================================================
                     Books Block
       ===================================================*/
@@ -138,11 +156,11 @@ async function run() {
     // Get all book data
     app.get("/books", async (req, res) => {
       const searchText = req.query.search;
-      console.log(searchText);
+      // console.log(searchText);
       const query = {
         $or: [{ title: { $regex: searchText, $options: "i" } }],
       };
-      console.log(query, searchText);
+      // console.log(query, searchText);
 
       if (searchText) {
         const result = await bookCollection.find(query).toArray();
@@ -200,7 +218,7 @@ async function run() {
     // Update author data with author image
     app.patch("/authors", async (req, res) => {
       const { image, authorId } = req.body;
-      console.log(image, authorId);
+      // console.log(image, authorId);
 
       if (authorId) {
         const id = new ObjectId(authorId);
