@@ -62,6 +62,7 @@ async function run() {
     const userCollection = client.db("mobileLibraryDB").collection("users");
     const authorCollection = client.db("mobileLibraryDB").collection("authors");
     const bookCollection = client.db("mobileLibraryDB").collection("books");
+    const requisitionCollection = client.db("mobileLibraryDB").collection("requisition");
 
     /* =================================================
                     Payment Method block
@@ -137,12 +138,40 @@ async function run() {
       }
     });
 
+    // Update reader to moderator
+    app.patch("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      // console.log(email);
+      const query = { email: email };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: { role: "moderator" },
+      };
+      if (email) {
+        const result = await userCollection.updateOne(query, updateDoc, options);
+        res.send(result);
+      }
+    });
+
+    // Delete user
+
+    app.delete("/users/:email", async (req, res) => {
+      const email = req.params.email;
+
+      const query = { email: email };
+      if (email) {
+        const result = await userCollection.deleteOne(query);
+        res.send(result);
+      }
+    });
+
     /* =================================================
                     Books Block
       ===================================================*/
     // Posting book data into the server
     app.post("/books", async (req, res) => {
       const book = req.body;
+      // console.log("Bookz", book);
       const query = { title: book.title, authorId: book.authorId };
       const filter = await bookCollection.findOne(query);
       if (filter) {
@@ -190,6 +219,47 @@ async function run() {
       res.send(result);
     });
 
+    // Get book using id
+    app.get(`/book-details/:id`, async (req, res) => {
+      const bookId = req.params.id;
+      const id = new ObjectId(bookId);
+      const query = { _id: id };
+      if (bookId) {
+        const result = await bookCollection.findOne(query);
+        res.send(result);
+      }
+    });
+
+    // Change book count after requisition or return
+    app.patch("/book/:id", async (req, res) => {
+      const id = req.params.id;
+      const bookId = new ObjectId(id);
+      const bookCount = req.body.bookCount;
+
+      const query = { _id: bookId };
+      const options = { upsert: true };
+      const updateDoc = {
+        $inc: { qty: bookCount },
+      };
+
+      if (id) {
+        const result = await bookCollection.updateOne(query, updateDoc, options);
+        res.send(result);
+      }
+    });
+
+    // Delete book from all books
+    app.delete("/books/:id", async (req, res) => {
+      const id = req.params.id;
+      // console.log(id);
+      const bookId = new ObjectId(id);
+      const query = { _id: bookId };
+      if (id) {
+        const result = await bookCollection.deleteOne(query);
+        res.send(result);
+      }
+    });
+
     /* ---------------------------------------------------
                     Free Ebook Part
   -----------------------------------------------------*/
@@ -199,6 +269,35 @@ async function run() {
       const result = await bookCollection.find(query).toArray();
       res.send(result);
     });
+    /* =================================================
+                    Requisition Block
+      ===================================================*/
+
+    app.post("/requisition", async (req, res) => {
+      const requisitionInfo = req.body;
+      const query = { readerEmail: requisitionInfo.userEmail };
+      const result = await requisitionCollection.insertOne(requisitionInfo);
+      res.send(result);
+    });
+
+    // Update user's requisition count
+
+    app.patch("/reader/:email", async (req, res) => {
+      const email = req.params.email;
+      const count = req.body;
+
+      const query = { email: email };
+      const options = { upsert: true };
+      const updateDoc = {
+        $inc: { requsitionCount: count.changeValue },
+      };
+
+      if (email) {
+        const result = await userCollection.updateOne(query, updateDoc, options);
+        res.send(result);
+      }
+    });
+
     /* =================================================
                     Authors Block
       ===================================================*/
@@ -244,8 +343,9 @@ async function run() {
     });
 
     // get author by name
-    app.get("/authors", async (req, res) => {
+    app.get("/author", async (req, res) => {
       const authorName = req.query.name;
+      console.log("Auhtor Name", authorName);
       if (authorName) {
         const query = { name: authorName };
         const result = await authorCollection.findOne(query);
@@ -260,6 +360,7 @@ async function run() {
     // Get author by id
     app.get("/authors/:id", async (req, res) => {
       const id = req.params.id;
+      // console.log("authorId", id);
       if (id) {
         const authorId = new ObjectId(id);
         const query = { _id: authorId };
