@@ -289,11 +289,59 @@ async function run() {
       const query = { email: email };
       const options = { upsert: true };
       const updateDoc = {
-        $inc: { requsitionCount: count.changeValue },
+        $inc: { requisitionCount: count.changeValue },
       };
 
       if (email) {
         const result = await userCollection.updateOne(query, updateDoc, options);
+        res.send(result);
+      }
+    });
+
+    // Get all requisitions data to show on dashboard
+    app.get("/requisitions", async (req, res) => {
+      const result = await requisitionCollection.find().toArray();
+      res.send(result);
+    });
+
+    // Get all requisitions with delivered status
+    app.get("/delivered/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { userEmail: email };
+      if (email) {
+        const result = await requisitionCollection.find(query).toArray();
+        res.send(result);
+      }
+    });
+
+    // Set Moderator Status to delivered and readerStatus to received
+    app.patch("/delivered/:id", async (req, res) => {
+      const id = req.params.id;
+      const requisitionId = new ObjectId(id);
+      const filter = { _id: requisitionId };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: { moderatorStatus: "delivered", readerStatus: "received" },
+      };
+
+      if (id) {
+        const result = await requisitionCollection.updateOne(filter, updateDoc, options);
+        res.send(result);
+      }
+    });
+
+    // Set Moderator Status to received and readerStatus to returned
+    app.patch("/returned/:id", async (req, res) => {
+      const id = req.params.id;
+      const requisitionId = new ObjectId(id);
+      const filter = { _id: requisitionId };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: { moderatorStatus: "received", readerStatus: "returned" },
+      };
+
+      if (id) {
+        const result = await requisitionCollection.updateOne(filter, updateDoc, options);
         res.send(result);
       }
     });
