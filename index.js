@@ -275,6 +275,7 @@ async function run() {
 
     app.post("/requisition", async (req, res) => {
       const requisitionInfo = req.body;
+
       const query = { readerEmail: requisitionInfo.userEmail };
       const result = await requisitionCollection.insertOne(requisitionInfo);
       res.send(result);
@@ -342,6 +343,17 @@ async function run() {
 
       if (id) {
         const result = await requisitionCollection.updateOne(filter, updateDoc, options);
+        res.send(result);
+      }
+    });
+
+    // Delete requisition data by id
+    app.delete("/requisitions/:id", async (req, res) => {
+      const id = req.params.id;
+      const requisitionId = new ObjectId(id);
+      const query = { _id: requisitionId };
+      if (id) {
+        const result = await requisitionCollection.deleteOne(query);
         res.send(result);
       }
     });
